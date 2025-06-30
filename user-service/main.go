@@ -21,6 +21,7 @@ func main() {
 	e := echo.New()
 	e.POST("/register", registerHandler)
 	e.POST("/login", loginHandler)
+	e.GET("/health", healthHandler)
 	e.Logger.Fatal(e.Start(":8080"))
 }
 
@@ -104,4 +105,16 @@ func generateJWT(userID int64, email string) (string, error) {
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	secret := os.Getenv("JWT_SECRET")
 	return t.SignedString([]byte(secret))
+}
+
+func healthHandler(c echo.Context) error {
+	if db.Pool == nil {
+		return c.JSON(http.StatusServiceUnavailable, map[string]string{"status": "db not connected"})
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := db.Pool.Ping(ctx); err != nil {
+		return c.JSON(http.StatusServiceUnavailable, map[string]string{"status": "db unreachable"})
+	}
+	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 }
