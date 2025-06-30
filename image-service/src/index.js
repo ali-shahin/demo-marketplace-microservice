@@ -22,7 +22,17 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({ storage });
+const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const upload = multer({
+    storage,
+    fileFilter: (req, file, cb) => {
+        if (allowedMimeTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only image files are allowed!'), false);
+        }
+    }
+});
 
 app.post('/upload', upload.single('image'), async (req, res) => {
     if (!req.file) {
@@ -48,6 +58,9 @@ app.post('/upload', upload.single('image'), async (req, res) => {
         res.status(500).json({ error: 'Image processing failed' });
     }
 });
+
+// Serve static files from the uploads directory
+app.use('/uploads', express.static(uploadDir));
 
 app.listen(PORT, () => {
     console.log(`Image Optimization Service running on port ${PORT}`);
