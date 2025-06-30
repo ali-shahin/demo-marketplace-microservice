@@ -22,7 +22,8 @@ func main() {
 	e.GET("/products/:id", getProduct)
 	e.PUT("/products/:id", updateProduct)
 	e.DELETE("/products/:id", deleteProduct)
-	e.GET("/products", listProducts) // New route for listing all products
+	e.GET("/products", listProducts)
+	e.GET("/health", healthHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -109,4 +110,15 @@ func listProducts(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch products"})
 	}
 	return c.JSON(http.StatusOK, products)
+}
+
+func healthHandler(c echo.Context) error {
+	if db.DB == nil {
+		return c.JSON(http.StatusServiceUnavailable, map[string]string{"status": "db not connected"})
+	}
+	err := db.DB.Ping()
+	if err != nil {
+		return c.JSON(http.StatusServiceUnavailable, map[string]string{"status": "db unreachable"})
+	}
+	return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 }
