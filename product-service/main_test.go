@@ -220,3 +220,98 @@ func TestCreateProductValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestListProductsFiltering(t *testing.T) {
+	os.Setenv("DB_HOST", "localhost")
+	os.Setenv("DB_PORT", "5432")
+	os.Setenv("DB_USER", "testuser")
+	os.Setenv("DB_PASSWORD", "testpass")
+	os.Setenv("DB_NAME", "testdb")
+	if err := db.Connect(); err != nil {
+		t.Fatalf("failed to connect to database: %v", err)
+	}
+	e := echo.New()
+	e.GET("/products", listProducts)
+
+	// Insert products for filtering
+	products := []model.Product{
+		{Name: "Apple", Description: "Fruit", Price: 1.0, Stock: 10},
+		{Name: "Banana", Description: "Fruit", Price: 2.0, Stock: 5},
+		{Name: "Carrot", Description: "Vegetable", Price: 3.0, Stock: 0},
+	}
+	for _, p := range products {
+		_ = p.Insert()
+	}
+
+	t.Run("filter by name", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/products?name=Apple", nil)
+		w := httptest.NewRecorder()
+		c := e.NewContext(req, w)
+		if err := listProducts(c); err != nil {
+			t.Fatalf("handler returned error: %v", err)
+		}
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, w.Code)
+		}
+		var resp []model.Product
+		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+			t.Errorf("failed to unmarshal response: %v", err)
+		}
+		if len(resp) != 1 || resp[0].Name != "Apple" {
+			t.Errorf("expected Apple, got %+v", resp)
+		}
+	})
+
+	t.Run("filter by min_price", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/products?min_price=2.0", nil)
+		w := httptest.NewRecorder()
+		c := e.NewContext(req, w)
+		if err := listProducts(c); err != nil {
+			t.Fatalf("handler returned error: %v", err)
+		}
+		var resp []model.Product
+		_ = json.Unmarshal(w.Body.Bytes(), &resp)
+		if len(resp) != 2 {
+			t.Errorf("expected 2 products, got %d", len(resp))
+		}
+	})
+
+	t.Run("filter by max_price", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/products?max_price=1.5", nil)
+		w := httptest.NewRecorder()
+		c := e.NewContext(req, w)
+		if err := listProducts(c); err != nil {
+			t.Fatalf("handler returned error: %v", err)
+		}
+		var resp []model.Product
+		_ = json.Unmarshal(w.Body.Bytes(), &resp)
+		if len(resp) != 1 || resp[0].Name != "Apple" {
+			t.Errorf("expected Apple, got %+v", resp)
+		}
+	})
+
+	t.Run("filter by stock", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/products?stock=0", nil)
+		w := httptest.NewRecorder()
+		c := e.NewContext(req, w)
+		if err := listProducts(c); err != nil {
+			t.Fatalf("handler returned error: %v", err)
+		}
+		var resp []model.Product
+		_ = json.Unmarshal(w.Body.Bytes(), &resp)
+		if len(resp) != 1 || resp[0].Name != "Carrot" {
+			t.Errorf("expected Carrot, got %+v", resp)
+		}
+	})
+
+	t.Run("invalid min_price", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/products?min_price=abc", nil)
+		w := httptest.NewRecorder()
+		c := e.NewContext(req, w)
+		if err := listProducts(c); err == nil {
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("expected status %d, got %d", http.StatusBadRequest, w.Code)
+			}
+		}
+	})
+}
