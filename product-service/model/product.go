@@ -86,3 +86,50 @@ func ListAll() ([]Product, error) {
 	}
 	return products, nil
 }
+
+func buildProductFilterQuery(name, minPrice, maxPrice, stock string) (string, []interface{}) {
+	query := `SELECT id, name, description, price, stock, created_at, updated_at FROM products WHERE 1=1`
+	args := []interface{}{}
+	idx := 1
+
+	if name != "" {
+		query += " AND name ILIKE '%' || $" + strconv.Itoa(idx) + " || '%'"
+		args = append(args, name)
+		idx++
+	}
+	if minPrice != "" {
+		query += " AND price >= $" + strconv.Itoa(idx)
+		args = append(args, minPrice)
+		idx++
+	}
+	if maxPrice != "" {
+		query += " AND price <= $" + strconv.Itoa(idx)
+		args = append(args, maxPrice)
+		idx++
+	}
+	if stock != "" {
+		query += " AND stock = $" + strconv.Itoa(idx)
+		args = append(args, stock)
+		idx++
+	}
+	return query, args
+}
+
+func ListFiltered(name, minPrice, maxPrice, stock string) ([]Product, error) {
+	query, args := buildProductFilterQuery(name, minPrice, maxPrice, stock)
+	rows, err := db.DB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var products []Product
+	for rows.Next() {
+		var p Product
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.Price, &p.Stock, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			return nil, err
+		}
+		products = append(products, p)
+	}
+	return products, nil
+}

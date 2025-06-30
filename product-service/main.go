@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"product_service/db"
 	"product_service/model"
@@ -81,7 +82,29 @@ func deleteProduct(c echo.Context) error {
 }
 
 func listProducts(c echo.Context) error {
-	products, err := model.ListAll()
+	name := c.QueryParam("name")
+	minPrice := c.QueryParam("min_price")
+	maxPrice := c.QueryParam("max_price")
+	stock := c.QueryParam("stock")
+
+	// Validate numeric query params
+	if minPrice != "" {
+		if _, err := strconv.ParseFloat(minPrice, 64); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "min_price must be a number"})
+		}
+	}
+	if maxPrice != "" {
+		if _, err := strconv.ParseFloat(maxPrice, 64); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "max_price must be a number"})
+		}
+	}
+	if stock != "" {
+		if _, err := strconv.Atoi(stock); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "stock must be an integer"})
+		}
+	}
+
+	products, err := model.ListFiltered(name, minPrice, maxPrice, stock)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch products"})
 	}
